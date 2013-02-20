@@ -17,7 +17,6 @@
         };
         
         function init() {
-            flakes = makeFlakes();
             drawSnowFlake();
         }
         
@@ -25,16 +24,6 @@
             update();
             drawFrame();
             setTimeout(function(){anim(t+1);}, 20);
-        }
-        
-        function makeFlakes() {
-            var flakes = [];
-            
-            for(var i = 0; i < config.numFlakes; i++) {
-                flakes.push(makeRandomFlake());
-            }
-            
-            return flakes;
         }
         
         function makeRandomFlake() {
