@@ -50,7 +50,7 @@
                 w       : size,
                 h       : size,
                 theta   : getRandomFloat(0, 2 * Math.PI),
-                dTheta  : getRandomFloat(- 5 * Math.PI/180, 5 * Math.PI/180)
+                dTheta  : getRandomFloat(- 3 * Math.PI/180, 3 * Math.PI/180)
             };
         }
         
@@ -129,11 +129,11 @@
             function drawFlakeLine() {
                 flakeContext.save();
 
-                flakeContext.scale(0.02, 1);
+                flakeContext.scale(0.06, 1);
                 flakeContext.beginPath();
                 flakeContext.moveTo(-1,     0);
-                flakeContext.lineTo(-0.3,   1);
-                flakeContext.lineTo( 0.3,   1);
+                flakeContext.lineTo(-0.2,   1);
+                flakeContext.lineTo( 0.2,   1);
                 flakeContext.lineTo( 1,     0);
                 flakeContext.closePath();
                 flakeContext.fill();
