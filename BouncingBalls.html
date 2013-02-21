@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js" type="text/javascript"></script>
+    <script type="text/javascript">
+    function main() {
+        var outCanvas = $("#out").get(0);
+        var ctx = outCanvas.getContext("2d");
+
+        var balls = null;
+        
+        var config = {
+            numBalls: 8,
+            sizeMin: 30,
+            sizeMax: 60,
+            
+            a_gravity: +0.5,
+            wallBounce: 0.9,
+            floorBounce: 0.5,
+            ceilingBounce: 0.1,
+            ballBounce: 0.8,
+            ballsCollide: true,
+
+            trailOpacity: 0.8,
+            ballOpacity: 0.5
+        };
+        
+        function init() {
+            $('#ballsCollide').click(function() {
+                config.ballsCollide = this.checked;
+            });
+            $('#ballsCollide').get(0).checked = config.ballsCollide;
+            
+            balls = makeRandomBalls();
+        }
+        
+        function anim(t) {
+            update();
+            drawFrame();
+            if(window.requestAnimationFrame) {
+                requestAnimationFrame(function(){anim(t+1);});
+            }
+            else {
+                setTimeout(function(){anim(t+1);}, 20);
+            }
+        }
+        
+        function makeRandomBalls() {
+            var balls = [];
+            
+            for(var i = 0; i < config.numBalls; i++) {
+                balls.push(makeRandomBall());
+            }
+            
+            return balls;
+        }
+        
+        function makeRandomBall() {
+            var r = getRandomFloat(config.sizeMin, config.sizeMax);
+            
+            return {
+                s       : new Point(    getRandomFloat(r, outCanvas.width - r),
+                                        getRandomFloat(r, outCanvas.height / 2)),
+                v       : new Point(    getRandomFloat(-10, 10),
+                                        getRandomFloat(-3, 3)),
+                r       : r
+            };
+        }
+        
+        function update() {
+        
+            // Note on wall collisions. Force velocity to the
+            // sign we expect instead of just negating it. This stops
+            // balls getting stuck in walls if they go too far out of the area.
+        
+            // Update position and velocity
+            balls.forEach(function (ball) {
+                ball.s = ball.s.add(ball.v);
+
+                if(ball.s.x - ball.r < 0) {
+                    ball.v.x = config.wallBounce * Math.abs(ball.v.x);
+                    ball.s.x = ball.r;
+                }
+                if(ball.s.x + ball.r > outCanvas.width) {
+                    ball.v.x = -1 * config.wallBounce * Math.abs(ball.v.x);
+                    ball.s.x = outCanvas.width - ball.r;
+                }
+                // Don't accelerate due to gravity when bouncing.
+                // This makes collisions with the ground perfectly elastic.
+                if(ball.s.y + ball.r > outCanvas.height) {
+                    ball.v.y = -1 * config.floorBounce * Math.abs(ball.v.y);
+                    ball.s.y = outCanvas.height - ball.r;
+                }
+                else if(ball.s.y - ball.r < 0) {
+                    ball.v.y = config.ceilingBounce * Math.abs(ball.v.y);
+                    ball.s.y = ball.r;
+                }
+                else {
+                    ball.v.y += config.a_gravity;
+                }
+            });
+            
+            doCollisions();
+        }
+        
+        function doCollisions() {
+            // Reset collision detection state
+            balls.forEach(function (ball) {
+                ball.collisionDetected = false;
+            });
+            
+            var numBalls = balls.length;
+            for(var iBall1 = 0; iBall1 < numBalls; iBall1++) {
+                for(var iBall2 = iBall1 + 1; iBall2 < numBalls; iBall2++) {
+                    // For each pair of balls.
+                    var ball1 = balls[iBall1];
+                    var ball2 = balls[iBall2];
+                    
+                    var squaredSeparationDistance = ball1.s.squaredDistanceTo(ball2.s);
+                    
+                    var isCollision = squaredSeparationDistance < squared(ball1.r + ball2.r);
+                    
+                    if(isCollision) {
+                        ball1.collisionDetected = true;
+                        ball2.collisionDetected = true;
+                        
+                        if(config.ballsCollide) {
+                            resolveCollision(ball1, ball2, squaredSeparationDistance);
+                        }
+                    }
+                }
+            }
+        }
+        
+        function resolveCollision(ball1, ball2, squaredSeparationDistance) {
+            var separationDistance = Math.sqrt(squaredSeparationDistance);
+            var distanceCorrectionLength = 1.0 * (ball1.r + ball2.r - separationDistance);
+        
+            var displacement12Norm = ball2.s.subtract(ball1.s).normalised();
+            ball1.s = ball1.s.add(displacement12Norm.multiply(-distanceCorrectionLength / 2));
+            ball2.s = ball2.s.add(displacement12Norm.multiply(+distanceCorrectionLength / 2));
+            
+            var impulse = -displacement12Norm.dot(ball2.v.subtract(ball1.v));
+            
+            if(impulse < 0) {
+                // Already separating, do nothing.
+                return;
+            }
+            
+            var dampedImpulse = impulse * ((1 + config.ballBounce) / 2)
+            
+            var newBall1V = ball1.v.add(displacement12Norm.multiply(-dampedImpulse));
+            var newBall2V = ball2.v.add(displacement12Norm.multiply( dampedImpulse));
+            
+            ball1.v = newBall1V;
+            ball2.v = newBall2V;
+        }
+        
+        function squared(num) {
+            return num*num;
+        }
+        
+        function drawFrame(t) {
+            clearOutput(ctx);
+
+            ctx.globalAlpha = config.ballOpacity;
+
+            balls.forEach(function (ball) {
+                resetTransform(ctx);
+                
+                ctx.fillStyle = ball.collisionDetected ? "#f00" : "#00f";
+                
+                ctx.beginPath();
+                ctx.arc(ball.s.x, ball.s.y, ball.r, 0 /* startAngle */, 2 * Math.PI /* endAngle */);
+                ctx.closePath();
+                ctx.fill();
+            });
+        }
+        
+        function clearOutput(ctx) {
+            resetTransform(ctx);
+            ctx.fillStyle = "#fff";
+            ctx.globalAlpha = config.trailOpacity;
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
+        
+        function resetTransform(ctx) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+        
+        function getRandomFloat(min, max) {
+            return min + Math.random() * (max - min);
+        }
+        
+        var Point = (function() {
+            function Point(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            Point.prototype.add = function(other) {
+                return new Point(this.x + other.x, this.y + other.y);
+            }
+            
+            Point.prototype.subtract = function(other) {
+                return new Point(this.x - other.x, this.y - other.y);
+            }
+            
+            Point.prototype.multiply = function(scalar) {
+                return new Point(this.x * scalar, this.y * scalar);
+            }
+            
+            Point.prototype.distanceTo = function(other) {
+                return this.subtract(other).size();
+            }
+            
+            Point.prototype.squaredDistanceTo = function(other) {
+                return this.subtract(other).sizeSquared();
+            }
+            
+            Point.prototype.size = function() {
+                var d2 = this.sizeSquared();
+                var d = Math.sqrt(d2);
+                return d;
+            }
+            
+            Point.prototype.sizeSquared = function() {
+                var d2 = this.x * this.x + this.y * this.y
+                return d2;
+            }
+            
+            Point.prototype.normalised = function() {
+                var size = this.size();
+                if(size < 0.00000001) {
+                    throw "Cannot normalise zero";
+                }
+                return this.multiply(1 / size);
+            }
+            
+            Point.prototype.dot = function(other) {
+                return this.x * other.x + this.y * other.y;
+            }
+            
+            return Point;
+        }());
+
+        init();
+        anim(0);
+    }
+
+    $().ready(main);
+    </script>
+</head>
+<body>
+    <canvas id="out" width="800" height="800" style="width: 400px; height: 400px; border: 1px  solid #000;"></canvas>
+    <div>
+        <input type="checkbox" name="ballsCollide" id="ballsCollide" />
+        <label for="ballsCollide">Balls collide</label>
+    </div>
+</body>
+</html>
